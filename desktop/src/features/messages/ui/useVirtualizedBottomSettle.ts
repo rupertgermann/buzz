@@ -1,7 +1,6 @@
 import * as React from "react";
 import type { VListHandle } from "virtua";
 
-const BOTTOM_EPSILON_PX = 1;
 const SETTLE_DEADLINE_MS = 250;
 
 export function useVirtualizedBottomSettle(
@@ -36,8 +35,6 @@ export function useVirtualizedBottomSettle(
   const settle = React.useCallback(() => {
     cancel();
     const deadline = performance.now() + SETTLE_DEADLINE_MS;
-    let settledFrames = 0;
-    let previousHeight = -1;
     const next = () => {
       const scroller = hostRef.current?.firstElementChild;
       const lastIndex = itemsLengthRef.current - 1;
@@ -46,15 +43,11 @@ export function useVirtualizedBottomSettle(
         return;
       }
       listRef.current?.scrollToIndex(lastIndex, { align: "end" });
-      const atBottom =
-        scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop <=
-        BOTTOM_EPSILON_PX;
-      settledFrames =
-        atBottom && scroller.scrollHeight === previousHeight
-          ? settledFrames + 1
-          : 0;
-      previousHeight = scroller.scrollHeight;
-      if (settledFrames >= 2 || performance.now() >= deadline) {
+      // Keep chasing until the deadline rather than retiring after two stable
+      // frames. Fonts, media, and embeds can change row geometry after an
+      // apparently stable pair of frames; real reader input cancels through
+      // the listeners above.
+      if (performance.now() >= deadline) {
         frameRef.current = null;
         return;
       }
